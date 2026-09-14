@@ -15,7 +15,7 @@ namespace {
                for (auto It = BB.begin(); It !=BB.end(); ++It) {
                    Instruction &I = *It++;
                     if (auto *Op = dyn_cast<BinaryOperator>(&I)) {
-                        if (Op->getOpcode() == Instruction::Add) {
+                        if (Op->getOpcode() == Instruction::Add) { // this instruction does change a+b on a-(-b)
                             IRBuilder<> Builder(Op);
                             Value* LHS = Op->getOperand(0);
                             Value* RHS = Op->getOperand(1);
