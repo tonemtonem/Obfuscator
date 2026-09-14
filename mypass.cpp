@@ -78,7 +78,7 @@ namespace {
                             Op->replaceAllUsesWith(Add);
                             Op->eraseFromParent();
                         }
-                        if (Op->getOpcode() == Instruction::Mul) { // for small(<5) constants this change multiply to addition
+                        if (Op->getOpcode() == Instruction::Mul) { // for small(<5) constants this change multiplication to addition
                             Value* LHS = Op->getOperand(0);
                             Value* RHS = Op->getOperand(1);
                             if (isa<ConstantInt>(LHS)&& !isa<ConstantInt>(RHS)) std::swap(LHS, RHS); // we need constant in RHS
