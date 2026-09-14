@@ -48,7 +48,8 @@ namespace {
                    Instruction &I = *It++;
                     if (auto *Op = dyn_cast<BinaryOperator>(&I)) {
 
-                        if (Op->getOpcode() == Instruction::Add) { // this instruction does change a+b to a-(-b)
+                        if (Op->getOpcode() == Instruction::Add) {
+                            // this instruction does change a+b to a-(-b) or a + b to (a ^ b) + 2*(a&b)
                             int Roll = Dist(RNG); //calculate the probability
                             IRBuilder<> Builder(Op);
                             if (Roll < ADD_MBA_PROB) {
@@ -56,8 +57,8 @@ namespace {
                                 Value* RHS = Op->getOperand(1);
                                 Value* And = Builder.CreateAnd(LHS, RHS);
                                 Value* Mul = Builder.CreateMul(And, ConstantInt::get(And->getType(), 2));
-                                Value* Add = Builder.CreateAdd(LHS, RHS);
-                                Value* MBA = Builder.CreateAdd(Add, Mul);
+                                Value* Xor = Builder.CreateXor(LHS, RHS);
+                                Value* MBA = Builder.CreateAdd(Xor, Mul);
                                 Op->replaceAllUsesWith(MBA);
                                 Op->eraseFromParent();
                             }
