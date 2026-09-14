@@ -22,18 +22,15 @@ static cl::opt<int> AddMbaProb(
 */
 
 
-//for replacing multiplication in certain places
-template<typename T1>
-T1 multiply(T1 a, T1 b) {
-    T1 result = 0;
-    T1 original_a = a;
-    for (int i=0; i<b; i++) {
-        result += original_a;
-        }
-        return a;
-    }
 
 namespace {
+    //function to change multiplication to addition
+    Value *expandMulLinear(IRBuilder<> &B, Value *X, uint64_t C) {
+        Value *R = X;
+        for (uint64_t i = 1; i < C; ++i)
+            R = B.CreateAdd(R, X);
+        return R;
+    }
     //structure for modifying instructions in the code
     struct InstructionSubtitution : public PassInfoMixin<InstructionSubtitution> {
        PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
@@ -70,6 +67,7 @@ namespace {
                                 Op->replaceAllUsesWith(Sub);
                                 Op->eraseFromParent();
                             }
+
                         }
                         if (Op->getOpcode() == Instruction::Sub) { //this instruction does change a-b to a+(-b)
                             IRBuilder<> Builder(Op);
@@ -80,8 +78,25 @@ namespace {
                             Op->replaceAllUsesWith(Add);
                             Op->eraseFromParent();
                         }
-                        if (Op->getOpcode() == Instruction::Mul) {
-
+                        if (Op->getOpcode() == Instruction::Mul) { // for small(<5) constants this change multiply to addition
+                            Value* LHS = Op->getOperand(0);
+                            Value* RHS = Op->getOperand(1);
+                            if (isa<ConstantInt>(LHS)&& !isa<ConstantInt>(RHS)) std::swap(LHS, RHS); // we need constant in RHS
+                            auto *Const = dyn_cast<ConstantInt>(RHS);
+                            if (!Const)continue;
+                            const APInt &value= Const -> getValue();
+                            uint64_t C = value.getLimitedValue(5);
+                            if (C < 2 || C > 5) continue; // only for small constants
+                            if (auto *CL = dyn_cast<ConstantInt>(LHS)) {
+                                auto *Prod = ConstantInt::get(Op->getType(), CL->getValue() * value);
+                                Op->replaceAllUsesWith(Prod);
+                                Op->eraseFromParent();
+                                continue;
+                            }
+                            IRBuilder<> Builder(Op);
+                            Value* Res = expandMulLinear(Builder, LHS, C);
+                            Op->replaceAllUsesWith(Res);
+                            Op->eraseFromParent();
                         }
                     }
                }
