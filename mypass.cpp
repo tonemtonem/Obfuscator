@@ -34,7 +34,7 @@ namespace {
     //structure for modifying instructions in the code
     struct InstructionSubtitution : public PassInfoMixin<InstructionSubtitution> {
        PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
-
+            bool changed = false;
            std::mt19937 RNG(std::random_device{}());
            std::uniform_int_distribution<int> Dist(1, 100);
            for (BasicBlock &BB: F) {
@@ -55,6 +55,7 @@ namespace {
                                     Value* Mul = Builder.CreateMul(And, ConstantInt::get(And->getType(), 2));
                                     Value* Xor = Builder.CreateXor(LHS, RHS);
                                     Value* MBA = Builder.CreateAdd(Xor, Mul);
+                                    changed = true;
                                     Op->replaceAllUsesWith(MBA);
                                     Op->eraseFromParent();
                                 }
@@ -63,6 +64,7 @@ namespace {
                                     Value* RHS = Op->getOperand(1);
                                     Value* NegRHS = Builder.CreateNeg(RHS);
                                     Value* Sub = Builder.CreateSub(LHS, NegRHS);
+                                    changed = true;
                                     Op->replaceAllUsesWith(Sub);
                                     Op->eraseFromParent();
                                 }
@@ -80,6 +82,7 @@ namespace {
                                     Value* And = Builder.CreateAnd(Not, RHS);
                                     Value* Mul = Builder.CreateMul( And, ConstantInt::get(And -> getType(), 2));
                                     Value* MBA = Builder.CreateSub(Xor, Mul);
+                                    changed = true;
                                     Op->replaceAllUsesWith(MBA);
                                     Op->eraseFromParent();
                                 }
@@ -89,6 +92,7 @@ namespace {
                                     Value* RHS = Op->getOperand(1);
                                     Value* NegRHS = Builder.CreateNeg(RHS);
                                     Value* Add = Builder.CreateAdd(LHS, NegRHS);
+                                    changed = true;
                                     Op->replaceAllUsesWith(Add);
                                     Op->eraseFromParent();
                                 }
@@ -106,12 +110,14 @@ namespace {
                                 if (C < 2 || C > 5) continue; // only for small constants
                                 if (auto *CL = dyn_cast<ConstantInt>(LHS)) {
                                     auto *Prod = ConstantInt::get(Op->getType(), CL->getValue() * value);
+                                    changed = true;
                                     Op->replaceAllUsesWith(Prod);
                                     Op->eraseFromParent();
                                     continue;
                                 }
                                 IRBuilder<> Builder(Op);
                                 Value* Res = expandMulLinear(Builder, LHS, C);
+                                changed = true;
                                 Op->replaceAllUsesWith(Res);
                                 Op->eraseFromParent();
                                 break;
@@ -124,6 +130,7 @@ namespace {
                                 Value* Or = Builder.CreateOr(LHS, RHS);
                                 Value* And = Builder.CreateAnd(LHS, RHS);
                                 Value* Sub = Builder.CreateSub(Or, And);
+                                changed = true;
                                 Op->replaceAllUsesWith(Sub);
                                 Op->eraseFromParent();
                                 break;
@@ -136,16 +143,18 @@ namespace {
                                 Value* And = Builder.CreateAnd(LHS, RHS);
                                 Value* Xor = Builder.CreateXor(LHS, RHS);
                                 Value* Add = Builder.CreateAdd(And, Xor);
+                                changed = true;
                                 Op -> replaceAllUsesWith(Add);
                                 Op -> eraseFromParent();
                                 break;
                             }
-
                                 default: continue;
                         }
                     }
                }
            }
+           if (!changed) return PreservedAnalyses::all();
+              return PreservedAnalyses::none();
        }
     };
 }
