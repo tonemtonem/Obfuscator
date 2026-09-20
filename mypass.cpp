@@ -20,10 +20,20 @@ static cl::opt<int> AddMbaProb(
     cl::init(20),
     cl::desc("Probability (%) of replacing add with MBA obfuscation"));
 */
-
-
-
 namespace {
+
+// padding for blocks <8 bytes, for XTEA encryption
+    inline
+    std::vector<uint8_t> padToBlockSize(const StringRef Data, const size_t BlockSize = 8){
+        std::vector<uint8_t> Out(Data.begin(), Data.end());
+        size_t PadLen = BlockSize - (Out.size() % BlockSize);
+        if (PadLen == 0) PadLen = BlockSize;
+        for (size_t i = 0; i < PadLen; i++)
+        Out.push_back(static_cast<uint8_t>(PadLen));
+        return Out;
+    }
+
+
     //function to change multiplication to addition
     Value *expandMulLinear(IRBuilder<> &B, Value *X, uint64_t C) {
         Value *R = X;
@@ -33,7 +43,7 @@ namespace {
     }
     //structure for modifying instructions in the code
     struct InstructionSubtitution : public PassInfoMixin<InstructionSubtitution> {
-       PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
+       PreservedAnalyses static run(Function &F, FunctionAnalysisManager &) {
             bool changed = false;
            std::mt19937 RNG(std::random_device{}());
            std::uniform_int_distribution<int> Dist(1, 100);
@@ -156,5 +166,19 @@ namespace {
            if (!changed) return PreservedAnalyses::all();
               return PreservedAnalyses::none();
        }
+    };
+
+    struct StringConstEncryption : PassInfoMixin<StringConstEncryption> {
+        static PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
+            bool Changed = false;
+            for (auto &GlobalVariable : M.globals()) {
+
+                
+                Changed = true;
+            }
+            if (!Changed)
+                return PreservedAnalyses::all();
+            return PreservedAnalyses::none();
+        }
     };
 }
