@@ -12,7 +12,7 @@ namespace llvm {
         Out.push_back(static_cast<uint8_t>(PadLen));
         return Out;
     }
-    inline void xteaEncrypt(uint32_t v[2], uint32_t key[4]) {
+    inline void xteaEncrypt(uint32_t v[2], const uint32_t key[4]) {
         uint32_t v0 = v[0], v1 = v[1];
         uint32_t sum = 0;
         uint32_t delta = 0x9E3779B9;
@@ -20,6 +20,18 @@ namespace llvm {
             v0 += ((v1 << 4 ^ v1 >> 5) + v1) ^ (sum + key[sum & 3]);
             sum += delta;
             v1 += ((v0 << 4 ^ v0 >> 5) + v0) ^ (sum + key[(sum >> 11) & 3]);
+        }
+        v[0] = v0;
+        v[1] = v1;
+    }
+    inline void xteaDecrypt(uint32_t v[2], const uint32_t key[4]) {
+        uint32_t v0 = v[0], v1 = v[1];
+        uint32_t delta = 0x9E3779B9;
+        uint32_t sum = delta * 32;
+        for (uint32_t i = 0; i < 32; i++) {
+            v1 -= ((v0 << 4 ^ v0 >> 5) + v0) ^ (sum + key[(sum >> 11) & 3]);
+            sum -= delta;
+            v0 -= ((v1 << 4 ^ v1 >> 5) + v1) ^ (sum + key[sum & 3]);
         }
         v[0] = v0;
         v[1] = v1;
