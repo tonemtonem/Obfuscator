@@ -18,7 +18,12 @@ include(AddLLVM)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_library(MyPass MODULE mypass.cpp)
+add_library(MyPass MODULE
+        include/Passes/InstructionSubstitution.h
+        include/Utils/MBAhelpers.h
+        include/Passes/StringConstEncryption.h
+        include/Utils/CryptoUtils.h
+        include/CommandLine.h)
 
 set(LLVM_EXTRA_INCLUDE_CANDIDATES
         "/usr/include/llvm-${LLVM_VERSION_MAJOR}"
