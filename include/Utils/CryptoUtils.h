@@ -3,6 +3,7 @@
 #include "llvm/ADT/StringRef.h"
 #include <vector>
 #include<cstdint>
+#include <random>
 
 namespace llvm {
     // padding for blocks <8 bytes, for XTEA encryption
@@ -37,6 +38,12 @@ namespace llvm {
         }
         v[0] = v0;
         v[1] = v1;
+    }
+    inline std::array<uint32_t, 4> generateRandomKey() {
+        static std::mt19937 RNG(std::random_device{}());
+        std::uniform_int_distribution<uint32_t> Dist(0, std::numeric_limits<uint32_t>::max());
+        return {Dist(RNG), Dist(RNG), Dist(RNG), Dist(RNG)};
+
     }
 }
 #endif //OBFUSCATOR_CRYPTOUTILS_H
