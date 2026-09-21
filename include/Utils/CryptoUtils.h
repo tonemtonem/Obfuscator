@@ -7,7 +7,7 @@
 #include <array>
 #include <limits>
 
-namespace llvm {
+
     // padding for blocks <8 bytes, for XTEA encryption
     inline std::vector<uint8_t> padToBlockSize(const StringRef Data, const size_t BlockSize = 8){
         std::vector<uint8_t> Out(Data.begin(), Data.end());
@@ -47,5 +47,5 @@ namespace llvm {
         return {Dist(RNG), Dist(RNG), Dist(RNG), Dist(RNG)};
 
     }
-}
+
 #endif //OBFUSCATOR_CRYPTOUTILS_H
