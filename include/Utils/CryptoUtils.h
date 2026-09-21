@@ -4,6 +4,8 @@
 #include <vector>
 #include<cstdint>
 #include <random>
+#include <array>
+#include <limits>
 
 namespace llvm {
     // padding for blocks <8 bytes, for XTEA encryption
