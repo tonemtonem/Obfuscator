@@ -2,6 +2,8 @@
 #define OBFUSCATOR_CRYPTOUTILS_H
 #include "llvm/ADT/StringRef.h"
 #include <vector>
+#include<cstdint>
+
 namespace llvm {
     // padding for blocks <8 bytes, for XTEA encryption
     inline std::vector<uint8_t> padToBlockSize(const StringRef Data, const size_t BlockSize = 8){
