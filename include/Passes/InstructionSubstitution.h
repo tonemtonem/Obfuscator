@@ -15,7 +15,7 @@ namespace llvm {
             std::mt19937 RNG(std::random_device{}());
             std::uniform_int_distribution<int> Dist(1, 100);
             for (BasicBlock &BB: F) {
-                for (auto It = BB.begin(); It !=BB.end(); ++It) {
+                for (auto It = BB.begin(); It !=BB.end();) {
                     Instruction &I = *It++;
                     if (auto *Op = dyn_cast<BinaryOperator>(&I)) {
                         constexpr int ADD_SUB_PROB = 70;   // 70% for add -> neg+sub and for sub -> neg-add
@@ -83,8 +83,8 @@ namespace llvm {
                                 auto *Const = dyn_cast<ConstantInt>(RHS);
                                 if (!Const)continue;
                                 const APInt &value= Const -> getValue();
-                                uint64_t C = value.getLimitedValue(5);
-                                if (C < 2 || C > 5) continue; // only for small constants
+                                if (value.ult(2) || value.ugt(5)) continue;
+                                uint64_t C = value.getZExtValue();
                                 if (auto *CL = dyn_cast<ConstantInt>(LHS)) {
                                     auto *Prod = ConstantInt::get(Op->getType(), CL->getValue() * value);
                                     changed = true;
