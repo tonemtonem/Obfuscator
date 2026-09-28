@@ -8,8 +8,8 @@
 #include <limits>
 
 
-    // padding for blocks <8 bytes, for XTEA encryption
-    inline std::vector<uint8_t> padToBlockSize(const StringRef Data, const size_t BlockSize = 8){
+    // padding for blocks <8 bytes, for xtea encr
+    inline std::vector<uint8_t> padToBlockSize(const llvm::StringRef Data, const size_t BlockSize = 8){
         std::vector<uint8_t> Out(Data.begin(), Data.end());
         size_t PadLen = BlockSize - (Out.size() % BlockSize);
         if (PadLen == 0) PadLen = BlockSize;
@@ -29,7 +29,7 @@
         v[0] = v0;
         v[1] = v1;
     }
-    inline void xteaDecrypt(uint32_t v[2], const uint32_t key[4]) {
+    extern "C" void xteaDecrypt(uint32_t v[2], const uint32_t key[4]) {
         uint32_t v0 = v[0], v1 = v[1];
         uint32_t delta = 0x9E3779B9;
         uint32_t sum = delta * 32;
