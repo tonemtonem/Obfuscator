@@ -23,7 +23,11 @@ add_library(MyPass MODULE
         include/Utils/MBAhelpers.h
         include/Passes/StringConstEncryption.h
         include/Utils/CryptoUtils.h
-        include/CommandLine.h)
+        include/CommandLine.h
+        include/Passes/BogusControlFlow.h
+        lib/Utils/CryptoUtils.cpp
+        lib/Utils/MBAhelpers.cpp
+)
 
 set(LLVM_EXTRA_INCLUDE_CANDIDATES
         "/usr/include/llvm-${LLVM_VERSION_MAJOR}"

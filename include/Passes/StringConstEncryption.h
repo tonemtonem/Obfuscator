@@ -59,7 +59,7 @@ namespace llvm {
                     Builder.CreateMemCpy(Buf, Buf->getAlign(), NewGV, NewGV->getAlign(), Info.PaddedLength);
                     Value *BufPtr = Buf; // already a pointer, no bitcast needed with opaque ptrs
                     Value *KeyPtr = KeyGV;
-                    Builder.CreateCall(XteaDecryptFn, {BufPtr, KeyPtr});
+                    Builder.CreateCall(xteaDecrypt, {BufPtr, KeyPtr});
                     UserInst->replaceUsesOfWith(NewGV, BufPtr);
                 }
             }
