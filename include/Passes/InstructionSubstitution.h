@@ -5,124 +5,133 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/IR/IRBuilder.h"
 #include <random>
-#include "../Utils/MBAhelpers.h"
+#include "Utils/MBAhelpers.h"
+#include "CommandLine.h"
 
-namespace llvm {
-    //structure for modifying instructions in the code
-    struct InstructionSubtitution : public PassInfoMixin<InstructionSubtitution> {
-        PreservedAnalyses static run(Function &F, FunctionAnalysisManager &) {
+namespace obfuscator {
+    // Rewrites arithmetic/bitwise instructions into equivalent.
+    struct InstructionSubtitution : public llvm::PassInfoMixin<InstructionSubtitution> {
+        llvm::PreservedAnalyses static run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
             bool changed = false;
             std::mt19937 RNG(std::random_device{}());
             std::uniform_int_distribution<int> Dist(1, 100);
-            for (BasicBlock &BB: F) {
-                for (auto It = BB.begin(); It !=BB.end();) {
-                    Instruction &I = *It++;
-                    if (auto *Op = dyn_cast<BinaryOperator>(&I)) {
-                        constexpr int ADD_SUB_PROB = 70;   // 70% for add -> neg+sub and for sub -> neg-add
-                        constexpr int ADD_MBA_PROB = 20;  // 20% for add -> MBA and for sub -> MBA
-                        switch (Op -> getOpcode()) {
-                            case Instruction::Add:{
-                                // this instruction does change a+b to a-(-b) or a + b to (a ^ b) + 2*(a&b)
-                                int Roll = Dist(RNG); //calculate the probability
-                                IRBuilder<> Builder(Op);
-                                if (Roll < ADD_MBA_PROB) {
-                                    Value* LHS = Op->getOperand(0);
-                                    Value* RHS = Op->getOperand(1);
-                                    Value* And = Builder.CreateAnd(LHS, RHS);
-                                    Value* Mul = Builder.CreateMul(And, ConstantInt::get(And->getType(), 2));
-                                    Value* Xor = Builder.CreateXor(LHS, RHS);
-                                    Value* MBA = Builder.CreateAdd(Xor, Mul);
+
+            // AddMbaProb is checked first (roll < AddMbaProb), AddSubProb
+            // second (roll <= AddSubProb): the two are nested thresholds on
+            // the same roll, not independent probabilities, so keep
+            // AddMbaProb <= AddSubProb when configuring them.
+            const int AddMbaProbVal = AddMbaProb.getValue();
+            const int AddSubProbVal = AddSubProb.getValue();
+
+            for (llvm::BasicBlock &BB: F) {
+                for (auto It = BB.begin(); It != BB.end();) {
+                    llvm::Instruction &I = *It++;
+                    if (auto *Op = dyn_cast<llvm::BinaryOperator>(&I)) {
+                        if (!Op->getType()->isIntegerTy())
+                            continue;
+                        switch (Op->getOpcode()) {
+                            case llvm::Instruction::Add: {
+                                // a+b -> a-(-b), or a+b -> (a^b) + 2*(a&b)
+                                int Roll = Dist(RNG);
+                                llvm::IRBuilder<> Builder(Op);
+                                if (Roll < AddMbaProbVal) {
+                                    llvm::Value* LHS = Op->getOperand(0);
+                                    llvm::Value* RHS = Op->getOperand(1);
+                                    llvm::Value* And = Builder.CreateAnd(LHS, RHS);
+                                    llvm::Value* Mul = Builder.CreateMul(And, llvm::ConstantInt::get(And->getType(), 2));
+                                    llvm::Value* Xor = Builder.CreateXor(LHS, RHS);
+                                    llvm::Value* MBA = Builder.CreateAdd(Xor, Mul);
                                     changed = true;
                                     Op->replaceAllUsesWith(MBA);
                                     Op->eraseFromParent();
                                 }
-                                else if (Roll <= ADD_SUB_PROB) {
-                                    Value* LHS = Op->getOperand(0);
-                                    Value* RHS = Op->getOperand(1);
-                                    Value* NegRHS = Builder.CreateNeg(RHS);
-                                    Value* Sub = Builder.CreateSub(LHS, NegRHS);
+                                else if (Roll <= AddSubProbVal) {
+                                    llvm::Value* LHS = Op->getOperand(0);
+                                    llvm::Value* RHS = Op->getOperand(1);
+                                    llvm::Value* NegRHS = Builder.CreateNeg(RHS);
+                                    llvm::Value* Sub = Builder.CreateSub(LHS, NegRHS);
                                     changed = true;
                                     Op->replaceAllUsesWith(Sub);
                                     Op->eraseFromParent();
                                 }
                                 break;
                             }
-                            case Instruction::Sub: {
-                                //this instruction does change a-b to a+(-b)
-                                int Roll = Dist(RNG); //calculate the probability
-                                if (Roll < ADD_MBA_PROB) {
-                                    IRBuilder<> Builder(Op);
-                                    Value* LHS = Op->getOperand(0);
-                                    Value* RHS = Op->getOperand(1);
-                                    Value* Xor = Builder.CreateXor(LHS, RHS);
-                                    Value* Not = Builder.CreateNot(LHS);
-                                    Value* And = Builder.CreateAnd(Not, RHS);
-                                    Value* Mul = Builder.CreateMul( And, ConstantInt::get(And -> getType(), 2));
-                                    Value* MBA = Builder.CreateSub(Xor, Mul);
+                            case llvm::Instruction::Sub: {
+                                // a-b -> a+(-b)
+                                int Roll = Dist(RNG);
+                                if (Roll < AddMbaProbVal) {
+                                    llvm::IRBuilder<> Builder(Op);
+                                    llvm::Value* LHS = Op->getOperand(0);
+                                    llvm::Value* RHS = Op->getOperand(1);
+                                    llvm::Value* Xor = Builder.CreateXor(LHS, RHS);
+                                    llvm::Value* Not = Builder.CreateNot(LHS);
+                                    llvm::Value* And = Builder.CreateAnd(Not, RHS);
+                                    llvm::Value* Mul = Builder.CreateMul(And, llvm::ConstantInt::get(And->getType(), 2));
+                                    llvm::Value* MBA = Builder.CreateSub(Xor, Mul);
                                     changed = true;
                                     Op->replaceAllUsesWith(MBA);
                                     Op->eraseFromParent();
                                 }
-                                else if (Roll <= ADD_SUB_PROB) {
-                                    IRBuilder<> Builder(Op);
-                                    Value* LHS = Op->getOperand(0);
-                                    Value* RHS = Op->getOperand(1);
-                                    Value* NegRHS = Builder.CreateNeg(RHS);
-                                    Value* Add = Builder.CreateAdd(LHS, NegRHS);
+                                else if (Roll <= AddSubProbVal) {
+                                    llvm::IRBuilder<> Builder(Op);
+                                    llvm::Value* LHS = Op->getOperand(0);
+                                    llvm::Value* RHS = Op->getOperand(1);
+                                    llvm::Value* NegRHS = Builder.CreateNeg(RHS);
+                                    llvm::Value* Add = Builder.CreateAdd(LHS, NegRHS);
                                     changed = true;
                                     Op->replaceAllUsesWith(Add);
                                     Op->eraseFromParent();
                                 }
                                 break;
                             }
-                            case Instruction::Mul: {
-                                // for small(<5) constants this change multiplication to addition
-                                Value* LHS = Op->getOperand(0);
-                                Value* RHS = Op->getOperand(1);
-                                if (isa<ConstantInt>(LHS)&& !isa<ConstantInt>(RHS)) std::swap(LHS, RHS); // we need constant in RHS
-                                auto *Const = dyn_cast<ConstantInt>(RHS);
-                                if (!Const)continue;
-                                const APInt &value= Const -> getValue();
+                            case llvm::Instruction::Mul: {
+                                // for small (<5) constants, turn multiplication into addition
+                                llvm::Value* LHS = Op->getOperand(0);
+                                llvm::Value* RHS = Op->getOperand(1);
+                                if (isa<llvm::ConstantInt>(LHS) && !isa<llvm::ConstantInt>(RHS)) std::swap(LHS, RHS);
+                                auto *Const = dyn_cast<llvm::ConstantInt>(RHS);
+                                if (!Const) continue;
+                                const llvm::APInt &value = Const->getValue();
                                 if (value.ult(2) || value.ugt(5)) continue;
                                 uint64_t C = value.getZExtValue();
-                                if (auto *CL = dyn_cast<ConstantInt>(LHS)) {
-                                    auto *Prod = ConstantInt::get(Op->getType(), CL->getValue() * value);
+                                if (auto *CL = dyn_cast<llvm::ConstantInt>(LHS)) {
+                                    auto *Prod = llvm::ConstantInt::get(Op->getType(), CL->getValue() * value);
                                     changed = true;
                                     Op->replaceAllUsesWith(Prod);
                                     Op->eraseFromParent();
                                     continue;
                                 }
-                                IRBuilder<> Builder(Op);
-                                Value* Res = expandMulLinear(Builder, LHS, C);
+                                llvm::IRBuilder<> Builder(Op);
+                                llvm::Value* Res = expandMulLinear(Builder, LHS, C);
                                 changed = true;
                                 Op->replaceAllUsesWith(Res);
                                 Op->eraseFromParent();
                                 break;
                             }
-                            case Instruction::Xor: {
-                                // changes a^b to (a|b) - (a&b)
-                                IRBuilder<> Builder(Op);
-                                Value* LHS = Op->getOperand(0);
-                                Value* RHS = Op->getOperand(1);
-                                Value* Or = Builder.CreateOr(LHS, RHS);
-                                Value* And = Builder.CreateAnd(LHS, RHS);
-                                Value* Sub = Builder.CreateSub(Or, And);
+                            case llvm::Instruction::Xor: {
+                                // a^b -> (a|b) - (a&b)
+                                llvm::IRBuilder<> Builder(Op);
+                                llvm::Value* LHS = Op->getOperand(0);
+                                llvm::Value* RHS = Op->getOperand(1);
+                                llvm::Value* Or = Builder.CreateOr(LHS, RHS);
+                                llvm::Value* And = Builder.CreateAnd(LHS, RHS);
+                                llvm::Value* Sub = Builder.CreateSub(Or, And);
                                 changed = true;
                                 Op->replaceAllUsesWith(Sub);
                                 Op->eraseFromParent();
                                 break;
                             }
-                            case Instruction::Or: {
-                                //changes a | b to (a&b) + (a^b)
-                                IRBuilder <> Builder(Op);
-                                Value* LHS = Op->getOperand(0);
-                                Value* RHS = Op->getOperand(1);
-                                Value* And = Builder.CreateAnd(LHS, RHS);
-                                Value* Xor = Builder.CreateXor(LHS, RHS);
-                                Value* Add = Builder.CreateAdd(And, Xor);
+                            case llvm::Instruction::Or: {
+                                // a|b -> (a&b) + (a^b)
+                                llvm::IRBuilder<> Builder(Op);
+                                llvm::Value* LHS = Op->getOperand(0);
+                                llvm::Value* RHS = Op->getOperand(1);
+                                llvm::Value* And = Builder.CreateAnd(LHS, RHS);
+                                llvm::Value* Xor = Builder.CreateXor(LHS, RHS);
+                                llvm::Value* Add = Builder.CreateAdd(And, Xor);
                                 changed = true;
-                                Op -> replaceAllUsesWith(Add);
-                                Op -> eraseFromParent();
+                                Op->replaceAllUsesWith(Add);
+                                Op->eraseFromParent();
                                 break;
                             }
                             default: continue;
@@ -130,9 +139,11 @@ namespace llvm {
                     }
                 }
             }
-            if (!changed) return PreservedAnalyses::all();
-            return PreservedAnalyses::none();
+            if (!changed) return llvm::PreservedAnalyses::all();
+            return llvm::PreservedAnalyses::none();
         }
+
+        static bool isRequired() { return true; }
     };
 }
-#endif //OBFUSCATOR_INSTRUCTIONSUBSTITUTION_H
+#endif // OBFUSCATOR_INSTRUCTIONSUBSTITUTION_H

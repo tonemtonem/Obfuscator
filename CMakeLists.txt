@@ -1,6 +1,5 @@
-cmake_minimum_required(VERSION 4.2)
+cmake_minimum_required(VERSION 3.20)
 project(Obfuscator LANGUAGES CXX)
-
 
 if(DEFINED ENV{LLVM_DIR} AND NOT LLVM_DIR)
     set(LLVM_DIR "$ENV{LLVM_DIR}" CACHE PATH "Path to LLVMConfig.cmake" FORCE)
@@ -18,13 +17,10 @@ include(AddLLVM)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_library(MyPass MODULE
-        include/Passes/InstructionSubstitution.h
-        include/Utils/MBAhelpers.h
-        include/Passes/StringConstEncryption.h
-        include/Utils/CryptoUtils.h
-        include/CommandLine.h
-        include/Passes/BogusControlFlow.h
+
+add_llvm_pass_plugin(MyPass
+        lib/PassPlugin.cpp
+        lib/CommandLine.cpp
         lib/Utils/CryptoUtils.cpp
         lib/Utils/MBAhelpers.cpp
 )
@@ -42,11 +38,8 @@ foreach(_dir ${LLVM_EXTRA_INCLUDE_CANDIDATES})
 endforeach()
 
 target_include_directories(MyPass PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${LLVM_INCLUDE_DIRS}
         ${LLVM_EXTRA_INCLUDES}
 )
 target_compile_definitions(MyPass PRIVATE ${LLVM_DEFINITIONS})
-
-set_target_properties(MyPass PROPERTIES
-        PREFIX ""
-)

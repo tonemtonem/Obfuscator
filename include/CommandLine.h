@@ -1,21 +1,25 @@
-
 #ifndef OBFUSCATOR_COMMANDLINE_H
 #define OBFUSCATOR_COMMANDLINE_H
 #include "llvm/Support/CommandLine.h"
-//to configure the specified probability of replacing the `add` instruction in CLI
-namespace llvm {
-    static cl::opt<int> AddSubProb(
-        "add-sub-prob",
-        cl::init(70),
-        cl::desc("Probability (%) of replacing add with sub obfuscation"));
 
-    static cl::opt<int> AddMbaProb(
-        "add-mba-prob",
-        cl::init(20),
-        cl::desc("Probability (%) of replacing add with MBA obfuscation"));
-    static cl::opt<int> kObfuscatProbability(
-        "obfuscation-probability",
-        cl::init(50),
-        cl::desc("Probability (%) of applying obfuscation to each instruction"));
+// Command-line knobs shared by all passes in this plugin.
+//
+
+namespace obfuscator {
+
+    // Probability  of replacing `add`/`sub` with a negate-based rewrite
+    // (a + b -> a - (-b), a - b -> a + (-b)) in the InstructionSubstitution
+    // pass.
+    extern llvm::cl::opt<int> AddSubProb;
+
+    // Probabilityof replacing `add`/`sub` with a Mixed-Boolean-Arithmetic
+
+    extern llvm::cl::opt<int> AddMbaProb;
+
+    // Probability of applying bogus control flow to each eligible basic
+    // block in the BogusControlFlow pass.
+    extern llvm::cl::opt<int> ObfuscationProbability;
+
 }
-#endif //OBFUSCATOR_COMMANDLINE_H
+
+#endif // OBFUSCATOR_COMMANDLINE_H
