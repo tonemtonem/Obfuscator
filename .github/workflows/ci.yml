@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    strategy:
+      # Don't cancel the 21 job if 18 fails (or vice versa) -- we want to see
+      # both results, since the whole point is cross-version portability.
+      fail-fast: false
+      matrix:
+        llvm: [18, 21]
+
+    name: LLVM ${{ matrix.llvm }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM ${{ matrix.llvm }} + tools
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh ${{ matrix.llvm }}
+          sudo apt-get install -y \
+            llvm-${{ matrix.llvm }}-dev \
+            clang-${{ matrix.llvm }} \
+            ninja-build
+          # sanity: the exact tools the build/tests will use
+          clang-${{ matrix.llvm }} --version
+          llvm-config-${{ matrix.llvm }} --version
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DLLVM_DIR=$(llvm-config-${{ matrix.llvm }} --cmakedir)
+
+      - name: Build plugin
+        run: cmake --build build
+
+      - name: Run regression tests
+        run: |
+          chmod +x tests/run.sh
+          tests/run.sh build/MyPass.so -${{ matrix.llvm }}

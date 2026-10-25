@@ -1,0 +1,15 @@
+
+build/
+*.so
+*.o
+
+
+tests/t_*
+tests/dt_*
+tests/test_base
+tests/test_is
+tests/test_bcf*
+tests/test_se
+tests/test_all
+tests/*.ll
+!tests/*.golden.ll
