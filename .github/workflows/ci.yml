@@ -18,6 +18,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Drop broken preinstalled apt repos on the runner
+        # The ubuntu-24.04 runner ships a packages.microsoft.com repo that
+        # intermittently returns 403/"no longer signed", which makes every
+        # apt-get update (including the one inside llvm.sh) fail with exit
+        # code 100. Remove it so apt only sees working repositories.
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft*.list
+          sudo rm -f /etc/apt/sources.list.d/*microsoft*.list
+
       - name: Install LLVM ${{ matrix.llvm }} + tools
         run: |
           wget https://apt.llvm.org/llvm.sh
