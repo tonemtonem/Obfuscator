@@ -10,7 +10,6 @@
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <random>
-#include <unordered_map>
 #include "CommandLine.h"
 
 namespace obfuscator {
@@ -45,24 +44,22 @@ static bool isEligible(llvm::BasicBlock &BB) {
 }
 
 // Returns (and lazily creates) this module's opaque-predicate seed global.
-// Cached per-Module rather than in a function-local static, since a single
-// process may run this pass over multiple Modules (e.g. multi-TU / LTO /
-// parallel compilation), and a function-local static would leak a
-// GlobalVariable* from one Module into another.
+// The module is queried directly rather than through any static cache: a
+// cache keyed on Module* is unsafe because a module can be freed and a new
+// one allocated at the same address, which would hand back a dangling
+// GlobalVariable*. getNamedGlobal is self-correcting per module and finds
+// internal-linkage globals too (unlike getGlobalVariable(Name), whose
+// default AllowInternal=false would miss our internal seed and create a
+// renamed duplicate on every call).
 static llvm::GlobalVariable *getOrCreateSeedGlobal(llvm::Module &M) {
-    static std::unordered_map<llvm::Module *, llvm::GlobalVariable *> Cache;
-
-    auto It = Cache.find(&M);
-    if (It != Cache.end())
-        return It->second;
+    if (auto *GV = M.getNamedGlobal("__bcf_seed"))
+        return GV;
 
     auto *Ty = llvm::Type::getInt32Ty(M.getContext());
     auto *Opaque = new llvm::GlobalVariable(
         M, Ty, /*isConstant=*/false, llvm::GlobalValue::InternalLinkage,
         llvm::ConstantInt::get(Ty, 0x9E3779B9), "__bcf_seed");
     Opaque->setAlignment(llvm::Align(4));
-
-    Cache[&M] = Opaque;
     return Opaque;
 }
 

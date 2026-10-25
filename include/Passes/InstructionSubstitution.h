@@ -5,15 +5,19 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/IR/IRBuilder.h"
 #include <random>
+#include <string>
+#include <functional>
 #include "Utils/MBAhelpers.h"
 #include "CommandLine.h"
 
 namespace obfuscator {
-    // Rewrites arithmetic/bitwise instructions into equivalent.
-    struct InstructionSubtitution : public llvm::PassInfoMixin<InstructionSubtitution> {
+    // Rewrites arithmetic/bitwise instructions into equivalent, less
+    // obvious forms (negate-based rewrites or Mixed-Boolean-Arithmetic).
+    struct InstructionSubstitution : public llvm::PassInfoMixin<InstructionSubstitution> {
         llvm::PreservedAnalyses static run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
             bool changed = false;
-            std::mt19937 RNG(std::random_device{}());
+
+            std::mt19937 RNG(std::hash<std::string>{}(F.getName().str()));
             std::uniform_int_distribution<int> Dist(1, 100);
 
             // AddMbaProb is checked first (roll < AddMbaProb), AddSubProb
@@ -27,6 +31,10 @@ namespace obfuscator {
                 for (auto It = BB.begin(); It != BB.end();) {
                     llvm::Instruction &I = *It++;
                     if (auto *Op = dyn_cast<llvm::BinaryOperator>(&I)) {
+                        // Only scalar integers: the rewrites below build
+                        // constants with ConstantInt::get(Ty, 2), which
+                        // requires an IntegerType and would assert on vector
+                        // (or any non-integer) operands.
                         if (!Op->getType()->isIntegerTy())
                             continue;
                         switch (Op->getOpcode()) {
@@ -110,6 +118,10 @@ namespace obfuscator {
                             }
                             case llvm::Instruction::Xor: {
                                 // a^b -> (a|b) - (a&b)
+                                // Gated on the same threshold as add/sub so
+                                // obfuscation density is consistent across
+                                // opcodes rather than rewriting every xor.
+                                if (Dist(RNG) > AddSubProbVal) break;
                                 llvm::IRBuilder<> Builder(Op);
                                 llvm::Value* LHS = Op->getOperand(0);
                                 llvm::Value* RHS = Op->getOperand(1);
@@ -123,6 +135,7 @@ namespace obfuscator {
                             }
                             case llvm::Instruction::Or: {
                                 // a|b -> (a&b) + (a^b)
+                                if (Dist(RNG) > AddSubProbVal) break;
                                 llvm::IRBuilder<> Builder(Op);
                                 llvm::Value* LHS = Op->getOperand(0);
                                 llvm::Value* RHS = Op->getOperand(1);
@@ -142,6 +155,7 @@ namespace obfuscator {
             if (!changed) return llvm::PreservedAnalyses::all();
             return llvm::PreservedAnalyses::none();
         }
+
 
         static bool isRequired() { return true; }
     };
